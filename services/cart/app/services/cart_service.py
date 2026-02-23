@@ -17,6 +17,7 @@ from app.exceptions import (
     CartNotFoundException,
     NotFoundException,
     ItemNotFoundException,
+    ItemQuantityReductionExceedsException,
     StrategyPluginException,
     BalanceZeroException,
     BalanceMinusException,
@@ -402,6 +403,64 @@ class CartService(ICartService):
         cart_doc = await self.__subtotal_async(cart_doc)
 
         # Save to cache
+        await self.__cache_cart_async(cart_doc=cart_doc, cart_status=CartStatus.NoUpdate)
+
+        return cart_doc
+
+    # Bulk reduce line item quantities
+    async def bulk_reduce_line_item_quantity_in_cart_async(
+        self, reduce_items: list[dict]
+    ) -> CartDocument:
+        """
+        Bulk reduce the quantities of multiple line items in the cart atomically.
+
+        Validates all items first, then applies all reductions in a single cache operation.
+        If any validation fails, no changes are applied to the cart.
+
+        Args:
+            reduce_items: List of dicts with 'item_code' and 'quantity' (reduction amount)
+
+        Returns:
+            CartDocument: The updated cart document with modified quantities
+
+        Raises:
+            ItemNotFoundException: If any item_code is not found in the cart
+            ItemQuantityReductionExceedsException: If any reduction quantity exceeds current quantity
+        """
+        # Get cart information (single cache read)
+        cart_doc = await self.__get_cached_cart_async(self.cart_id)
+
+        # Check if the event can be accepted in the current state
+        self.state_manager.check_event_sequence(self)
+
+        # Build index of active (non-cancelled) line items keyed by item_code
+        active_items = {
+            li.item_code: li
+            for li in cart_doc.line_items
+            if not li.is_cancelled
+        }
+
+        # Validate all items before making any changes (atomic pre-check)
+        for item in reduce_items:
+            item_code = item["item_code"]
+            reduce_qty = item["quantity"]
+            if item_code not in active_items:
+                raise ItemNotFoundException(
+                    f"Item not found in cart: {item_code}", logger
+                )
+            if reduce_qty > active_items[item_code].quantity:
+                raise ItemQuantityReductionExceedsException(
+                    f"Reduction quantity exceeds the item quantity in cart: {item_code}", logger
+                )
+
+        # Apply all reductions in-memory (all validations passed)
+        for item in reduce_items:
+            active_items[item["item_code"]].quantity -= item["quantity"]
+
+        # Recalculate subtotal (single call)
+        cart_doc = await self.__subtotal_async(cart_doc)
+
+        # Save to cache (single write)
         await self.__cache_cart_async(cart_doc=cart_doc, cart_status=CartStatus.NoUpdate)
 
         return cart_doc

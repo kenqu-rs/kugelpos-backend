@@ -1,0 +1,250 @@
+openapi: "3.0.3"
+info:
+  title: Cart Service - Bulk Quantity Reduction API
+  version: "1.0.0"
+  description: 複数商品の一括数量削減エンドポイント
+
+servers:
+  - url: http://localhost:8003/api/v1
+    description: ローカル開発環境
+
+paths:
+  /carts/{cart_id}/lineItems/bulkQuantityReduce:
+    patch:
+      summary: 複数商品の数量を一括削減する
+      description: |
+        カートに登録済みの複数商品の数量を一度のリクエストで削減する。
+        リスト内のいずれかの商品でバリデーションエラーが発生した場合、
+        カート全体の変更は行われない（アトミック操作）。
+      operationId: bulk_reduce_item_quantity
+      tags:
+        - LineItems
+      parameters:
+        - name: cart_id
+          in: path
+          required: true
+          description: 操作対象のカートID
+          schema:
+            type: string
+            example: "cart_20260223_001"
+        - name: terminal_id
+          in: query
+          required: true
+          description: 端末ID（テナント認証に使用）
+          schema:
+            type: string
+            example: "T001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/BulkQuantityReductionItem'
+            example:
+              - itemCode: "ITEM001"
+                quantity: 2
+              - itemCode: "ITEM002"
+                quantity: 1
+      responses:
+        "200":
+          description: 一括削減成功。更新後のカート全体を返す。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCart'
+              example:
+                success: true
+                code: 200
+                message: "Bulk quantity reduction completed. cart_id: cart_20260223_001"
+                data:
+                  cartId: "cart_20260223_001"
+                  cartStatus: "EnteringItem"
+                  lineItems:
+                    - lineNo: 1
+                      itemCode: "ITEM001"
+                      itemName: "商品A"
+                      unitPrice: 1000.0
+                      quantity: 3
+                      amount: 3000.0
+                      discounts: []
+                      imageUrls: []
+                      isCancelled: false
+                    - lineNo: 2
+                      itemCode: "ITEM002"
+                      itemName: "商品B"
+                      unitPrice: 500.0
+                      quantity: 2
+                      amount: 1000.0
+                      discounts: []
+                      imageUrls: []
+                      isCancelled: false
+                  totalAmount: 4000.0
+                  totalQuantity: 5
+                  subtotalAmount: 4000.0
+                  balanceAmount: 4000.0
+        "400":
+          description: |
+            バリデーションエラー。以下の場合に発生:
+            - 削減数量がカート内登録数量を超える（エラーコード: 402006）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                reduction_exceeds:
+                  summary: 削減数量が登録数量を超える
+                  value:
+                    success: false
+                    code: 400
+                    message: "Reduction quantity exceeds the item quantity in cart: ITEM001"
+                    error_code: "402006"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        "403":
+          description: 認可エラー（アクセス権限なし）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        "404":
+          description: |
+            リソースが見つからない。以下の場合に発生:
+            - 指定されたカートIDが存在しない
+            - 指定した商品コードがカート内に存在しない（エラーコード: 402001）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                item_not_found:
+                  summary: 商品コードがカートに存在しない
+                  value:
+                    success: false
+                    code: 404
+                    message: "Item not found: ITEM999"
+                    error_code: "402001"
+        "422":
+          description: |
+            Pydanticバリデーションエラー。以下の場合に発生:
+            - リクエストが空配列
+            - `quantity` が 0 以下
+            - 同一 `itemCode` の重複
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        "500":
+          description: サーバー内部エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+components:
+  schemas:
+    BulkQuantityReductionItem:
+      type: object
+      required:
+        - itemCode
+        - quantity
+      properties:
+        itemCode:
+          type: string
+          description: 削減対象の商品コード
+          example: "ITEM001"
+        quantity:
+          type: integer
+          description: 削減する数量（1以上）
+          minimum: 1
+          example: 2
+
+    TranLineItem:
+      type: object
+      properties:
+        lineNo:
+          type: integer
+          description: 行番号
+        itemCode:
+          type: string
+        itemName:
+          type: string
+        unitPrice:
+          type: number
+        quantity:
+          type: integer
+        amount:
+          type: number
+        discounts:
+          type: array
+          items:
+            type: object
+        imageUrls:
+          type: array
+          items:
+            type: string
+        isCancelled:
+          type: boolean
+
+    Cart:
+      type: object
+      properties:
+        cartId:
+          type: string
+        cartStatus:
+          type: string
+          enum: [Initial, Idle, EnteringItem, Paying, Completed, Cancelled]
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/TranLineItem'
+        totalAmount:
+          type: number
+        totalQuantity:
+          type: integer
+        subtotalAmount:
+          type: number
+        balanceAmount:
+          type: number
+
+    ApiResponseCart:
+      type: object
+      properties:
+        success:
+          type: boolean
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/Cart'
+        operation:
+          type: string
+
+    ApiError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        code:
+          type: integer
+        message:
+          type: string
+        error_code:
+          type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

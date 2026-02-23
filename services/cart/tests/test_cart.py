@@ -1052,3 +1052,267 @@ async def test_unregistered_item_error(http_client):
     await http_client.post(f"/api/v1/carts/{cartId}/cancel?terminal_id={terminal_id}", headers=header)
 
     print("Unregistered item error test completed")
+
+
+# 一括数量削減APIのテスト
+@pytest.mark.asyncio
+async def test_bulk_quantity_reduce(http_client):
+    """複数商品の一括数量削減の正常系テスト"""
+    print("Testing bulk quantity reduce started")
+
+    # 認証トークンとテナント/ターミナル設定
+    token = await get_authentication_token()
+    tenant_id = await create_tenant(http_client, token)
+    terminal_info = await get_terminal_info(tenant_id)
+    terminal_id = terminal_info["terminalId"]
+    api_key = terminal_info.get("apiKey")
+    header = {"X-API-KEY": api_key}
+
+    # ターミナルがオープン状態になっていることを確認
+    current_status = terminal_info.get("status", "")
+    if current_status != "Opened":
+        await open_terminal(tenant_id)
+
+    # カートの作成
+    response = await http_client.post(
+        f"/api/v1/carts?terminal_id={terminal_id}",
+        json={"transaction_type": 101, "user_id": "99", "user_name": "John Doe"},
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    res = response.json()
+    cartId = res.get("data").get("cartId")
+
+    # 2商品を追加（1行目: 49-01 x 5、2行目: 49-02 x 3）
+    response = await http_client.post(
+        f"/api/v1/carts/{cartId}/lineItems?terminal_id={terminal_id}",
+        json=[
+            {"itemCode": "49-01", "quantity": 5},
+            {"itemCode": "49-02", "quantity": 3},
+        ],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    res = response.json()
+    assert res.get("success") is True
+    total_quantity_before = res.get("data").get("totalQuantity")
+
+    # 一括数量削減（49-01: 2削減、49-02: 1削減）
+    response = await http_client.patch(
+        f"/api/v1/carts/{cartId}/lineItems/bulkQuantityReduce?terminal_id={terminal_id}",
+        json=[
+            {"itemCode": "49-01", "quantity": 2},
+            {"itemCode": "49-02", "quantity": 1},
+        ],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    res = response.json()
+    assert res.get("success") is True
+    data = res.get("data")
+
+    # 削減後の数量を確認（49-01: 3、49-02: 2）
+    line_items = data.get("lineItems")
+    item_01 = next((li for li in line_items if li.get("itemCode") == "49-01" and not li.get("isCancelled")), None)
+    item_02 = next((li for li in line_items if li.get("itemCode") == "49-02" and not li.get("isCancelled")), None)
+    assert item_01 is not None
+    assert item_01.get("quantity") == 3
+    assert item_02 is not None
+    assert item_02.get("quantity") == 2
+
+    # 合計数量が削減されていることを確認
+    assert data.get("totalQuantity") == total_quantity_before - 3
+
+    # カートをキャンセルして終了
+    await http_client.post(f"/api/v1/carts/{cartId}/cancel?terminal_id={terminal_id}", headers=header)
+
+    print("Bulk quantity reduce test completed")
+
+
+# 一括数量削減API - 商品未登録エラーのテスト
+@pytest.mark.asyncio
+async def test_bulk_quantity_reduce_item_not_found(http_client):
+    """カートに存在しない商品コードを指定した場合のエラーテスト"""
+    print("Testing bulk quantity reduce item not found started")
+
+    # 認証トークンとテナント/ターミナル設定
+    token = await get_authentication_token()
+    tenant_id = await create_tenant(http_client, token)
+    terminal_info = await get_terminal_info(tenant_id)
+    terminal_id = terminal_info["terminalId"]
+    api_key = terminal_info.get("apiKey")
+    header = {"X-API-KEY": api_key}
+
+    # ターミナルがオープン状態になっていることを確認
+    current_status = terminal_info.get("status", "")
+    if current_status != "Opened":
+        await open_terminal(tenant_id)
+
+    # カートの作成と商品追加
+    response = await http_client.post(
+        f"/api/v1/carts?terminal_id={terminal_id}",
+        json={"transaction_type": 101, "user_id": "99", "user_name": "John Doe"},
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    res = response.json()
+    cartId = res.get("data").get("cartId")
+
+    response = await http_client.post(
+        f"/api/v1/carts/{cartId}/lineItems?terminal_id={terminal_id}",
+        json=[{"itemCode": "49-01", "quantity": 3}],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    # カートに存在しない商品コードを一括削減リクエストに含める
+    response = await http_client.patch(
+        f"/api/v1/carts/{cartId}/lineItems/bulkQuantityReduce?terminal_id={terminal_id}",
+        json=[
+            {"itemCode": "49-01", "quantity": 1},
+            {"itemCode": "NONEXISTENT-99", "quantity": 1},
+        ],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    res = response.json()
+    assert res.get("success") is False
+    print(f"Item not found response: {res}")
+
+    # カートをキャンセルして終了
+    await http_client.post(f"/api/v1/carts/{cartId}/cancel?terminal_id={terminal_id}", headers=header)
+
+    print("Bulk quantity reduce item not found test completed")
+
+
+# 一括数量削減API - 削減数量超過エラーのテスト
+@pytest.mark.asyncio
+async def test_bulk_quantity_reduce_exceeds(http_client):
+    """削減数量がカート内の数量を超えた場合のエラーテスト"""
+    print("Testing bulk quantity reduce exceeds started")
+
+    # 認証トークンとテナント/ターミナル設定
+    token = await get_authentication_token()
+    tenant_id = await create_tenant(http_client, token)
+    terminal_info = await get_terminal_info(tenant_id)
+    terminal_id = terminal_info["terminalId"]
+    api_key = terminal_info.get("apiKey")
+    header = {"X-API-KEY": api_key}
+
+    # ターミナルがオープン状態になっていることを確認
+    current_status = terminal_info.get("status", "")
+    if current_status != "Opened":
+        await open_terminal(tenant_id)
+
+    # カートの作成と商品追加（数量2）
+    response = await http_client.post(
+        f"/api/v1/carts?terminal_id={terminal_id}",
+        json={"transaction_type": 101, "user_id": "99", "user_name": "John Doe"},
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    res = response.json()
+    cartId = res.get("data").get("cartId")
+
+    response = await http_client.post(
+        f"/api/v1/carts/{cartId}/lineItems?terminal_id={terminal_id}",
+        json=[{"itemCode": "49-01", "quantity": 2}],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    # カート内数量（2）を超える削減数量（5）を指定
+    response = await http_client.patch(
+        f"/api/v1/carts/{cartId}/lineItems/bulkQuantityReduce?terminal_id={terminal_id}",
+        json=[{"itemCode": "49-01", "quantity": 5}],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    res = response.json()
+    assert res.get("success") is False
+    print(f"Exceeds quantity response: {res}")
+
+    # カートをキャンセルして終了
+    await http_client.post(f"/api/v1/carts/{cartId}/cancel?terminal_id={terminal_id}", headers=header)
+
+    print("Bulk quantity reduce exceeds test completed")
+
+
+# 一括数量削減API - エッジケースのテスト
+@pytest.mark.asyncio
+async def test_bulk_quantity_reduce_edge_cases(http_client):
+    """一括数量削減のエッジケーステスト"""
+    print("Testing bulk quantity reduce edge cases started")
+
+    # 認証トークンとテナント/ターミナル設定
+    token = await get_authentication_token()
+    tenant_id = await create_tenant(http_client, token)
+    terminal_info = await get_terminal_info(tenant_id)
+    terminal_id = terminal_info["terminalId"]
+    api_key = terminal_info.get("apiKey")
+    header = {"X-API-KEY": api_key}
+
+    # ターミナルがオープン状態になっていることを確認
+    current_status = terminal_info.get("status", "")
+    if current_status != "Opened":
+        await open_terminal(tenant_id)
+
+    # カートの作成
+    response = await http_client.post(
+        f"/api/v1/carts?terminal_id={terminal_id}",
+        json={"transaction_type": 101, "user_id": "99", "user_name": "John Doe"},
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    res = response.json()
+    cartId = res.get("data").get("cartId")
+
+    # 商品追加（49-01 x 3）
+    response = await http_client.post(
+        f"/api/v1/carts/{cartId}/lineItems?terminal_id={terminal_id}",
+        json=[{"itemCode": "49-01", "quantity": 3}],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_200_OK
+
+    # エッジケース1: quantity=0 の場合は 422（フィールドバリデーションエラー）
+    response = await http_client.patch(
+        f"/api/v1/carts/{cartId}/lineItems/bulkQuantityReduce?terminal_id={terminal_id}",
+        json=[{"itemCode": "49-01", "quantity": 0}],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    print(f"quantity=0 response: {response.json()}")
+
+    # エッジケース2: 重複するitem_codeの場合は 422
+    response = await http_client.patch(
+        f"/api/v1/carts/{cartId}/lineItems/bulkQuantityReduce?terminal_id={terminal_id}",
+        json=[
+            {"itemCode": "49-01", "quantity": 1},
+            {"itemCode": "49-01", "quantity": 1},
+        ],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    print(f"Duplicate item_code response: {response.json()}")
+
+    # エッジケース3: quantity=1 で完全削減（数量が0になる）は 200 OK
+    response = await http_client.patch(
+        f"/api/v1/carts/{cartId}/lineItems/bulkQuantityReduce?terminal_id={terminal_id}",
+        json=[{"itemCode": "49-01", "quantity": 3}],
+        headers=header,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    res = response.json()
+    assert res.get("success") is True
+    data = res.get("data")
+    line_items = data.get("lineItems")
+    item_01 = next((li for li in line_items if li.get("itemCode") == "49-01" and not li.get("isCancelled")), None)
+    assert item_01 is not None
+    assert item_01.get("quantity") == 0
+    print(f"Complete reduction response: quantity={item_01.get('quantity')}")
+
+    # カートをキャンセルして終了
+    await http_client.post(f"/api/v1/carts/{cartId}/cancel?terminal_id={terminal_id}", headers=header)
+
+    print("Bulk quantity reduce edge cases test completed")

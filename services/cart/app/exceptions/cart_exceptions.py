@@ -234,6 +234,23 @@ class DiscountAllocationException(ServiceException):
         )
 
 
+class ItemQuantityReductionExceedsException(ServiceException):
+    """
+    Exception raised when the reduction quantity exceeds the current item quantity in cart.
+    削減数量がカート内の商品数量を超える場合に発生する例外
+    """
+
+    def __init__(self, message, logger=None, original_exception=None):
+        super().__init__(
+            message,
+            logger,
+            original_exception,
+            CartErrorCode.ITEM_QTY_REDUCTION_EXCEEDS,
+            CartErrorMessage.get_message(CartErrorCode.ITEM_QTY_REDUCTION_EXCEEDS),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
 class DiscountRestrictionException(ServiceException):
     """
     Exception raised when a discount is applied to a restricted item.

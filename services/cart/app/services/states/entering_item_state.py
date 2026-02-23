@@ -47,6 +47,7 @@ class EnteringItemState(AbstractState):
             ev.CANCEL_LINE_ITEM_FROM_CART.value,
             ev.UPDATE_LINE_ITEM_QUANTITY_IN_CART.value,
             ev.UPDATE_LINE_ITEM_UNIT_PRICE_IN_CART.value,
+            ev.BULK_REDUCE_LINE_ITEM_QUANTITY_IN_CART.value,
             ev.CANCEL_TRANSACTION.value,
             ev.SUBTOTAL.value,
             ev.GET_CART.value,

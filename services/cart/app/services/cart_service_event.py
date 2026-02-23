@@ -35,3 +35,6 @@ class CartServiceEvent(Enum):
     ADD_PAYMENT_TO_CART = "add_payment_to_cart_async"  # Event for adding payment to the cart
     BILL = "bill_async"  # Event for finalizing the transaction
     RESUME_ITEM_ENTRY = "resume_item_entry_async"  # Event for resuming item entry from paying state
+    BULK_REDUCE_LINE_ITEM_QUANTITY_IN_CART = (
+        "bulk_reduce_line_item_quantity_in_cart_async"  # Event for bulk reducing quantities of multiple line items
+    )

@@ -32,6 +32,7 @@ class CartErrorCode:
     BALANCE_LESS_THAN_DISCOUNT = "402003"  # 残高が値引金額より小さい
     DISCOUNT_ALLOCATION_ERROR = "402004"  # 値引の按分処理に失敗
     DISCOUNT_RESTRICTION = "402005"  # 値引禁止商品
+    ITEM_QTY_REDUCTION_EXCEEDS = "402006"  # 削減数量がカート内数量を超えている
 
     # 支払関連エラー (403xx)
     BALANCE_ZERO = "403001"  # 残高が既にゼロ
@@ -75,6 +76,7 @@ class CartErrorMessage:
             CartErrorCode.BALANCE_LESS_THAN_DISCOUNT: "値引金額が残高より多いです",
             CartErrorCode.DISCOUNT_ALLOCATION_ERROR: "値引の按分処理に失敗しました",
             CartErrorCode.DISCOUNT_RESTRICTION: "値引禁止商品です",
+            CartErrorCode.ITEM_QTY_REDUCTION_EXCEEDS: "削減数量がカート内の商品数量を超えています",
             # その他
             CartErrorCode.TERMINAL_STATUS_ERROR: "端末の状態を確認してください",
             CartErrorCode.SIGN_IN_OUT_ERROR: "担当者の登録状況を確認してください",
@@ -101,6 +103,7 @@ class CartErrorMessage:
             CartErrorCode.BALANCE_LESS_THAN_DISCOUNT: "Balance is less than discount",
             CartErrorCode.DISCOUNT_ALLOCATION_ERROR: "Discount allocation error",
             CartErrorCode.DISCOUNT_RESTRICTION: "Discount restriction",
+            CartErrorCode.ITEM_QTY_REDUCTION_EXCEEDS: "Reduction quantity exceeds the item quantity in cart",
             # その他
             CartErrorCode.TERMINAL_STATUS_ERROR: "Check terminal status",
             CartErrorCode.SIGN_IN_OUT_ERROR: "Check sign-in/out status",

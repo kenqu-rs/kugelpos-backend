@@ -36,6 +36,7 @@ from .cart_exceptions import (
     CartNotFoundException,
     CartCannotSaveException,
     ItemNotFoundException,
+    ItemQuantityReductionExceedsException,
     BalanceZeroException,
     BalanceMinusException,
     BalanceGreaterThanZeroException,

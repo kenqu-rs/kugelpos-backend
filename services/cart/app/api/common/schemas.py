@@ -1,6 +1,6 @@
 # Copyright 2025 masa@kugel  # # Licensed under the Apache License, Version 2.0 (the "License");  # you may not use this file except in compliance with the License.  # You may obtain a copy of the License at  # #     http://www.apache.org/licenses/LICENSE-2.0  # # Unless required by applicable law or agreed to in writing, software  # distributed under the License is distributed on an "AS IS" BASIS,  # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  # See the License for the specific language governing permissions and  # limitations under the License.
 from typing import Optional, TypeVar
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from kugel_common.utils.misc import to_lower_camel
 from kugel_common.enums import TransactionType
 
@@ -30,6 +30,38 @@ class BaseItem(BaseSchemmaModel):
     item_code: str
     quantity: int
     unit_price: Optional[float] = None
+
+
+class BaseBulkQuantityReductionItem(BaseSchemmaModel):
+    """
+    Base model representing a single item entry in a bulk quantity reduction request.
+    Contains the item code and the quantity to reduce.
+    """
+
+    item_code: str
+    quantity: int
+
+    @field_validator("quantity")
+    @classmethod
+    def quantity_must_be_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("quantity must be greater than 0")
+        return v
+
+
+class BaseBulkQuantityReductionRequest(BaseModel):
+    """
+    Validator wrapper used to check for duplicate item_codes across the request list.
+    Applied as a list-level validator at the route handler layer.
+    """
+
+    @staticmethod
+    def validate_no_duplicates(items: list) -> list:
+        """Raise ValueError if any item_code appears more than once."""
+        codes = [item.item_code for item in items]
+        if len(codes) != len(set(codes)):
+            raise ValueError("Duplicate item_code found in request list")
+        return items
 
 
 class BaseItemQuantityUpdateRequest(BaseSchemmaModel):

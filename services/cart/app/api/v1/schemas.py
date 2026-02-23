@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.api.common.schemas import (
     BaseCart,
     BaseItem,
+    BaseBulkQuantityReductionItem,
     BaseItemQuantityUpdateRequest,
     BaseItemUnitPriceUpdateRequest,
     BasePaymentRequest,
@@ -29,6 +30,15 @@ class Item(BaseItem):
     """
     API v1 model for representing items in shopping cart operations.
     Extends the BaseItem with version-specific functionality.
+    """
+
+    pass
+
+
+class BulkQuantityReductionItem(BaseBulkQuantityReductionItem):
+    """
+    API v1 model for a single item entry in a bulk quantity reduction request.
+    Contains the item code and the quantity to reduce (must be >= 1).
     """
 
     pass

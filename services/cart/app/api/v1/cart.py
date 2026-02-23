@@ -1,5 +1,5 @@
 # Copyright 2025 masa@kugel  # # Licensed under the Apache License, Version 2.0 (the "License");  # you may not use this file except in compliance with the License.  # You may obtain a copy of the License at  # #     http://www.apache.org/licenses/LICENSE-2.0  # # Unless required by applicable law or agreed to in writing, software  # distributed under the License is distributed on an "AS IS" BASIS,  # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  # See the License for the specific language governing permissions and  # limitations under the License.  # api/routes/cart.py
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, HTTPException
 from logging import getLogger
 import inspect
 
@@ -7,15 +7,17 @@ from kugel_common.schemas.api_response import ApiResponse
 from kugel_common.status_codes import StatusCodes
 from app.api.v1.schemas_transformer import SchemasTransformerV1
 from app.api.v1.schemas import (
-    Cart, 
-    CartCreateRequest, 
-    CartCreateResponse, 
-    Item, 
-    PaymentRequest, 
+    Cart,
+    CartCreateRequest,
+    CartCreateResponse,
+    Item,
+    BulkQuantityReductionItem,
+    PaymentRequest,
     DiscountRequest,
     ItemQuantityUpdateRequest,
     ItemUnitPriceUpdateRequest,
 )
+from app.api.common.schemas import BaseBulkQuantityReductionRequest
 from app.dependencies.get_cart_service import get_cart_service_async, get_cart_service_with_cart_id_async
 from app.services.cart_service import CartService
 
@@ -358,6 +360,59 @@ async def update_item_quantity(
         success=True,
         code=status.HTTP_200_OK,
         message=f"Quantity updated. cart_id: {cart_id}, line_no: {lineNo}",
+        data=SchemasTransformerV1().transform_cart(cart_doc=cart_doc).model_dump(),
+        operation=f"{inspect.currentframe().f_code.co_name}",
+    )
+    return response
+
+
+@router.patch(
+    "/carts/{cart_id}/lineItems/bulkQuantityReduce",
+    status_code=status.HTTP_200_OK,
+    response_model=ApiResponse[Cart],
+    responses={
+        status.HTTP_400_BAD_REQUEST: StatusCodes.get(status.HTTP_400_BAD_REQUEST),
+        status.HTTP_401_UNAUTHORIZED: StatusCodes.get(status.HTTP_401_UNAUTHORIZED),
+        status.HTTP_403_FORBIDDEN: StatusCodes.get(status.HTTP_403_FORBIDDEN),
+        status.HTTP_404_NOT_FOUND: StatusCodes.get(status.HTTP_404_NOT_FOUND),
+        status.HTTP_422_UNPROCESSABLE_ENTITY: StatusCodes.get(status.HTTP_422_UNPROCESSABLE_ENTITY),
+        status.HTTP_500_INTERNAL_SERVER_ERROR: StatusCodes.get(status.HTTP_500_INTERNAL_SERVER_ERROR),
+    },
+)
+async def bulk_reduce_item_quantity(
+    reduce_items: list[BulkQuantityReductionItem],
+    cart_service: CartService = Depends(get_cart_service_with_cart_id_async),
+):
+    """
+    Bulk reduce quantities of multiple cart line items in a single request.
+
+    Validates all items first, then applies all reductions atomically.
+    Returns an error if any item_code is not found or if any reduction
+    quantity exceeds the current item quantity in the cart.
+
+    Args:
+        reduce_items: List of items with item_code and quantity to reduce
+        cart_service: Injected cart service instance with cart_id
+
+    Returns:
+        API response with the updated cart data
+    """
+    cart_id = cart_service.cart_id
+    logger.debug(f"Bulk reducing quantities in cart {cart_id}: {reduce_items}")
+    try:
+        BaseBulkQuantityReductionRequest.validate_no_duplicates(reduce_items)
+        cart_doc = await cart_service.bulk_reduce_line_item_quantity_in_cart_async(
+            [item.model_dump() for item in reduce_items]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise e
+
+    response = ApiResponse(
+        success=True,
+        code=status.HTTP_200_OK,
+        message=f"Bulk quantity reduction completed. cart_id: {cart_id}",
         data=SchemasTransformerV1().transform_cart(cart_doc=cart_doc).model_dump(),
         operation=f"{inspect.currentframe().f_code.co_name}",
     )
