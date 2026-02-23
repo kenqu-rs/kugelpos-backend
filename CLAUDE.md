@@ -149,3 +149,12 @@ Format: XXYYZZ
 - Service settings in `/config/settings_*.py`
 - Dapr components in `/dapr/components/`
 - Dapr HTTP port: Default 3500 (configurable via `DAPR_HTTP_PORT`)
+
+## Active Technologies
+- Python 3.12+ + FastAPI, Motor (async MongoDB), Redis (Dapr state store), Pydantic v2 (001-bulk-qty-reduce)
+- Redis（カートキャッシュ、Dapr State Store経由） (001-bulk-qty-reduce)
+- Python 3.12 + FastAPI 0.x, Pydantic v2, Motor (async MongoDB), Redis (Dapr State Store), kugel_common (001-bulk-qty-reduce)
+- Redis（Dapr State Store経由のカートキャッシュ）, MongoDB（トランザクション永続化） (001-bulk-qty-reduce)
+
+## Recent Changes
+- 001-bulk-qty-reduce: Added Python 3.12+ + FastAPI, Motor (async MongoDB), Redis (Dapr state store), Pydantic v2

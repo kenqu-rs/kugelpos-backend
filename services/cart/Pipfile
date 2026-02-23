@@ -27,8 +27,8 @@ apscheduler = "*"
 flake8 = "*"
 black = "*"
 mypy = "*"
-locust = "*"
 pandas = "*"
+locust = "*"
 
 [requires]
 python_version = "3.12"
