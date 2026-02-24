@@ -17,6 +17,7 @@ from app.exceptions import (
     CartNotFoundException,
     NotFoundException,
     ItemNotFoundException,
+    LineItemNotFoundException,
     StrategyPluginException,
     BalanceZeroException,
     BalanceMinusException,
@@ -393,8 +394,19 @@ class CartService(ICartService):
         # Check if the event can be accepted in the current state
         self.state_manager.check_event_sequence(self)
 
+        # Validate line_no range (1-based, includes cancelled lines)
+        if line_no < 1 or line_no > len(cart_doc.line_items):
+            message = f"Line item not found. line_no: {line_no}, cart_id: {self.cart_id}"
+            raise LineItemNotFoundException(message, logger)
+
         # Update target line item
         line_item = cart_doc.line_items[line_no - 1]
+
+        # Reject modification to already cancelled lines
+        if line_item.is_cancelled:
+            message = f"Line item is already cancelled. line_no: {line_no}, cart_id: {self.cart_id}"
+            raise LineItemNotFoundException(message, logger)
+
         line_item.quantity = quantity
         # line_item.amount = line_item.unit_price * line_item.quantity
 

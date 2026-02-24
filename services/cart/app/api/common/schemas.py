@@ -1,6 +1,6 @@
 # Copyright 2025 masa@kugel  # # Licensed under the Apache License, Version 2.0 (the "License");  # you may not use this file except in compliance with the License.  # You may obtain a copy of the License at  # #     http://www.apache.org/licenses/LICENSE-2.0  # # Unless required by applicable law or agreed to in writing, software  # distributed under the License is distributed on an "AS IS" BASIS,  # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  # See the License for the specific language governing permissions and  # limitations under the License.
 from typing import Optional, TypeVar
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from kugel_common.utils.misc import to_lower_camel
 from kugel_common.enums import TransactionType
 
@@ -38,6 +38,16 @@ class BaseItemQuantityUpdateRequest(BaseSchemmaModel):
     """
 
     quantity: int
+
+
+class BaseItemLineNoQuantityUpdateRequest(BaseSchemmaModel):
+    """
+    Request model for updating the quantity of a line item specified by line_no.
+    行Noを指定してカート内の商品数量を変更するリクエストモデル
+    """
+
+    line_no: int = Field(ge=1, description="変更対象の行No（1始まり）")
+    quantity: int = Field(ge=1, le=99, description="新しい数量（1〜99）")
 
 
 class BaseItemUnitPriceUpdateRequest(BaseSchemmaModel):

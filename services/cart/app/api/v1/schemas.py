@@ -5,6 +5,7 @@ from app.api.common.schemas import (
     BaseCart,
     BaseItem,
     BaseItemQuantityUpdateRequest,
+    BaseItemLineNoQuantityUpdateRequest,
     BaseItemUnitPriceUpdateRequest,
     BasePaymentRequest,
     BaseDiscount,
@@ -38,6 +39,15 @@ class ItemQuantityUpdateRequest(BaseItemQuantityUpdateRequest):
     """
     API v1 model for item quantity update requests.
     Used when changing the quantity of an item in the cart.
+    """
+
+    pass
+
+
+class ItemLineNoQuantityUpdateRequest(BaseItemLineNoQuantityUpdateRequest):
+    """
+    API v1 model for item quantity update requests using line_no.
+    行Noとquantityをリクエストボディで指定して数量を変更する際に使用するモデル
     """
 
     pass

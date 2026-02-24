@@ -29,6 +29,7 @@ class CartErrorCode:
     # 商品登録関連エラー (402xx)
     ITEM_NOT_FOUND = "402001"  # 対象商品が見つからない
     AMOUNT_LESS_THAN_DISCOUNT = "402002"  # 商品金額が値引金額より小さい
+    LINE_ITEM_NOT_FOUND = "402006"  # 指定した行Noの明細が見つからない、またはキャンセル済み
     BALANCE_LESS_THAN_DISCOUNT = "402003"  # 残高が値引金額より小さい
     DISCOUNT_ALLOCATION_ERROR = "402004"  # 値引の按分処理に失敗
     DISCOUNT_RESTRICTION = "402005"  # 値引禁止商品
@@ -64,6 +65,7 @@ class CartErrorMessage:
             CartErrorCode.CART_SAVE_ERROR: "カートの保存に失敗しました",
             # 商品登録関連
             CartErrorCode.ITEM_NOT_FOUND: "対象商品が見つかりません",
+            CartErrorCode.LINE_ITEM_NOT_FOUND: "指定した行Noの商品が見つかりません",
             CartErrorCode.BALANCE_ZERO: "残高はすでに０です",
             CartErrorCode.BALANCE_GREATER_THAN_ZERO: "残高が残っています",
             CartErrorCode.BALANCE_MINUS: "残高がマイナスです",
@@ -90,6 +92,7 @@ class CartErrorMessage:
             CartErrorCode.CART_SAVE_ERROR: "Failed to save cart",
             # 商品登録関連
             CartErrorCode.ITEM_NOT_FOUND: "Item not found",
+            CartErrorCode.LINE_ITEM_NOT_FOUND: "Line item not found",
             CartErrorCode.BALANCE_ZERO: "Balance is already zero",
             CartErrorCode.BALANCE_GREATER_THAN_ZERO: "Balance is greater than zero",
             CartErrorCode.BALANCE_MINUS: "Balance is minus",

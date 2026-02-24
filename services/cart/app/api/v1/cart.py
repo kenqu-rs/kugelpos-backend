@@ -7,13 +7,14 @@ from kugel_common.schemas.api_response import ApiResponse
 from kugel_common.status_codes import StatusCodes
 from app.api.v1.schemas_transformer import SchemasTransformerV1
 from app.api.v1.schemas import (
-    Cart, 
-    CartCreateRequest, 
-    CartCreateResponse, 
-    Item, 
-    PaymentRequest, 
+    Cart,
+    CartCreateRequest,
+    CartCreateResponse,
+    Item,
+    PaymentRequest,
     DiscountRequest,
     ItemQuantityUpdateRequest,
+    ItemLineNoQuantityUpdateRequest,
     ItemUnitPriceUpdateRequest,
 )
 from app.dependencies.get_cart_service import get_cart_service_async, get_cart_service_with_cart_id_async
@@ -358,6 +359,53 @@ async def update_item_quantity(
         success=True,
         code=status.HTTP_200_OK,
         message=f"Quantity updated. cart_id: {cart_id}, line_no: {lineNo}",
+        data=SchemasTransformerV1().transform_cart(cart_doc=cart_doc).model_dump(),
+        operation=f"{inspect.currentframe().f_code.co_name}",
+    )
+    return response
+
+
+@router.patch(
+    "/carts/{cart_id}/lineItems/quantity",
+    status_code=status.HTTP_200_OK,
+    response_model=ApiResponse[Cart],
+    responses={
+        status.HTTP_400_BAD_REQUEST: StatusCodes.get(status.HTTP_400_BAD_REQUEST),
+        status.HTTP_401_UNAUTHORIZED: StatusCodes.get(status.HTTP_401_UNAUTHORIZED),
+        status.HTTP_403_FORBIDDEN: StatusCodes.get(status.HTTP_403_FORBIDDEN),
+        status.HTTP_404_NOT_FOUND: StatusCodes.get(status.HTTP_404_NOT_FOUND),
+        status.HTTP_422_UNPROCESSABLE_ENTITY: StatusCodes.get(status.HTTP_422_UNPROCESSABLE_ENTITY),
+        status.HTTP_500_INTERNAL_SERVER_ERROR: StatusCodes.get(status.HTTP_500_INTERNAL_SERVER_ERROR),
+    },
+)
+async def change_item_quantity(
+    quantity_update: ItemLineNoQuantityUpdateRequest,
+    cart_service: CartService = Depends(get_cart_service_with_cart_id_async),
+):
+    """
+    Update the quantity of a cart line item specified by line_no in the request body.
+    リクエストボディで行Noを指定してカート内の商品数量を変更する
+
+    Args:
+        quantity_update: 行Noと新しい数量を含むリクエスト
+        cart_service: Injected cart service instance with cart_id
+
+    Returns:
+        API response with the updated cart data
+    """
+    cart_id = cart_service.cart_id
+    line_no = quantity_update.line_no
+    quantity = quantity_update.quantity
+    logger.debug(f"Changing quantity for line item {line_no} in cart {cart_id} to {quantity}")
+    try:
+        cart_doc = await cart_service.update_line_item_quantity_in_cart_async(line_no, quantity)
+    except Exception as e:
+        raise e
+
+    response = ApiResponse(
+        success=True,
+        code=status.HTTP_200_OK,
+        message=f"Quantity updated. cart_id: {cart_id}, line_no: {line_no}",
         data=SchemasTransformerV1().transform_cart(cart_doc=cart_doc).model_dump(),
         operation=f"{inspect.currentframe().f_code.co_name}",
     )

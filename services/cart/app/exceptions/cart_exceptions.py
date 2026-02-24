@@ -78,6 +78,23 @@ class ItemNotFoundException(ServiceException):
         )
 
 
+class LineItemNotFoundException(ServiceException):
+    """
+    Exception raised when a line item is not found or is already cancelled.
+    指定した行Noの明細が見つからない、またはキャンセル済みの場合に発生する例外
+    """
+
+    def __init__(self, message, logger=None, original_exception=None):
+        super().__init__(
+            message,
+            logger,
+            original_exception,
+            CartErrorCode.LINE_ITEM_NOT_FOUND,
+            CartErrorMessage.get_message(CartErrorCode.LINE_ITEM_NOT_FOUND),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
 # 残高関連の例外
 class BalanceZeroException(ServiceException):
     """
